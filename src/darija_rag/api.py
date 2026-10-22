@@ -43,7 +43,7 @@ def _chunk_json(chunk: Chunk, **extra) -> dict:
 
 
 def create_app(factory: Factory | None = None, default_retriever: str | None = None) -> FastAPI:
-    app = FastAPI(title="darija-rag", version="0.3.0")
+    app = FastAPI(title="darija-rag", version="0.4.0")
     default_retriever = default_retriever or os.environ.get(
         "DARIJA_RAG_RETRIEVER", DEFAULT_RETRIEVER
     )

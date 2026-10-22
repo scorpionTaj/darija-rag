@@ -29,6 +29,8 @@ _DARIJA_WORDS = frozenset(normalize(w) for w in [
     "الدراري", "راجلي", "مراتي", "غادي", "هادشي", "هاداك", "فالخدمة", "فالسيمانة", "كتاخد",
     "كيتحسب", "ملي", "خاص", "شكون", "اللي", "امتى", "لامتى", "فشحال", "كيولي", "كيتسمى",
     "ولادو",
+    # Frequent in Darija answers, absent from MSA legal prose.
+    "إيه", "كاين", "كاينة", "ماشي", "خاصك", "عندك",
 ])
 # Not "fin": it is also French.
 _ARABIZI_WORDS = frozenset([

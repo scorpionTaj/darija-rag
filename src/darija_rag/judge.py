@@ -15,7 +15,7 @@ import json
 import re
 import statistics
 
-from darija_rag.answer import Answer
+from darija_rag.answer import Answer, language_ok
 from darija_rag.llm import LLMClient
 
 _JUDGE = (
@@ -66,6 +66,8 @@ def score(question: dict, answer: Answer, verdict: dict | None) -> dict:
         "abstained": answer.abstained,
         "abstention_ok": answer.abstained != in_scope,
         "citation_hit": any((c.doc, c.page) in targets for c in answer.cited_chunks),
+        "language_match": answer.abstained or language_ok(answer.text, answer.variety),
+        "language_fixed": answer.language_fixed,
         "total_s": answer.timings.get("total_s", 0.0),
         "question": question["question"],
         "retrieval_query": answer.retrieval_query,
@@ -98,6 +100,7 @@ def summarize(rows: list[dict]) -> dict:
         "answered_correct": rate(answered, "correct"),
         "faithfulness": rate(answered, "faithful"),
         "citation_hit": rate(answered, "citation_hit"),
+        "language_match": rate(answered, "language_match"),
         "false_abstention": rate(in_scope, "abstained"),
         "abstention_recall": rate(out_scope, "abstained"),
         "p50_s": statistics.median(latencies),
@@ -113,14 +116,15 @@ def answer_table(rows: list[dict]) -> str:
 
     header = (
         "| Questions | n | Accuracy | Correct when answered | Faithful | Citation hit "
-        "| False abstention | Abstention recall | p50 s | p95 s |"
+        "| Language match | False abstention | Abstention recall | p50 s | p95 s |"
     )
-    lines = [header, "|---|---|---|---|---|---|---|---|---|---|"]
+    lines = [header, "|---|---|---|---|---|---|---|---|---|---|---|"]
     for name, subset in group(rows).items():
         s = summarize(subset)
         lines.append(
             f"| {name} | {s['n']} | {fmt(s['accuracy'])} | {fmt(s['answered_correct'])} "
-            f"| {fmt(s['faithfulness'])} | {fmt(s['citation_hit'])} | {fmt(s['false_abstention'])} "
+            f"| {fmt(s['faithfulness'])} | {fmt(s['citation_hit'])} | {fmt(s['language_match'])} "
+            f"| {fmt(s['false_abstention'])} "
             f"| {fmt(s['abstention_recall'])} | {fmt(s['p50_s'], 1)} | {fmt(s['p95_s'], 1)} |"
         )
     return "\n".join(lines)

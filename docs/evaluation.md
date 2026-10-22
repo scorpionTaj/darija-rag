@@ -29,17 +29,17 @@ One JSON object per line:
 
 The older `{"doc": ..., "page": ...}` form is still accepted.
 
-### Current set: 258 questions
+### Current set: 282 questions
 
 |               | msa | darija | arabizi | fr | total |
 | ------------- | --- | ------ | ------- | -- | ----- |
-| factual       | 104 | 54     | 29      | 49 | 236   |
-| cross_lingual | –   | –      | –       | 4  | 4     |
+| factual       | 117 | 59     | 31      | 49 | 256   |
+| cross_lingual | –   | –      | –       | 8  | 8     |
 | unanswerable  | 6   | 4      | 2       | 6  | 18    |
 
 By document: Labour Code 95 (the Arabic and French pages both count), Family Code 85 (Arabic and
-French), Code of Obligations and Contracts 29 (Arabic and French), rental law 67.12 31 (Arabic
-only, so its French questions are the `cross_lingual` ones).
+French), rental law 67.12 31 and commercial lease law 49.16 24 (Arabic only, so their French
+questions are the `cross_lingual` ones), Code of Obligations and Contracts 29 (Arabic and French).
 
 ### Writing rules
 
@@ -70,6 +70,7 @@ only, so its French questions are the `cross_lingual` ones).
 | Correct when answered | in-scope, not abstained | the judge agrees with the reference on the key facts                |
 | Faithful              | in-scope, not abstained | the judge finds every claim supported by the given sources          |
 | Citation hit          | in-scope, not abstained | at least one cited source is a labeled relevant page                |
+| Language match        | in-scope, not abstained | the answer is in the question's language (Darija, Arabizi, French)  |
 | False abstention      | in-scope                | the system said "not in the documents" although the answer is there |
 | Abstention recall     | out-of-scope            | the system correctly said "not in the documents"                    |
 | p50 / p95 s           | all                     | end-to-end latency, retrieval plus generation                       |

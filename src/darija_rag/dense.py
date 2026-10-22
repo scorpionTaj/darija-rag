@@ -37,6 +37,12 @@ def torch_device() -> str:
     return os.environ.get("DARIJA_RAG_DEVICE", "cpu")
 
 
+def _slug(model: EmbeddingModel) -> str:
+    # The prefixes are part of the key: the same model with other prefixes gives other vectors.
+    digest = hashlib.sha256(repr(model).encode()).hexdigest()[:8]
+    return f"{model.name.replace('/', '__')}-{digest}"
+
+
 class DenseRetriever:
     def __init__(
         self,
@@ -56,17 +62,25 @@ class DenseRetriever:
         self.embeddings = self._passage_embeddings(cache_dir)
 
     def _passage_embeddings(self, cache_dir: Path | None) -> np.ndarray:
-        digest = hashlib.sha256(f"{self.model}".encode())
-        for chunk in self.chunks:
-            digest.update(chunk.id.encode() + b"\0" + chunk.text.encode() + b"\0")
-        cache = cache_dir / f"{digest.hexdigest()[:16]}.npy" if cache_dir else None
-        if cache and cache.exists():
-            return np.load(cache)
-        embeddings = self._encode([self.model.passage_prefix + chunk.text for chunk in self.chunks])
-        if cache:
-            cache.parent.mkdir(parents=True, exist_ok=True)
-            np.save(cache, embeddings)
-        return embeddings
+        """Embeddings for every chunk, cached per passage text: adding a document embeds only
+        its new chunks instead of the whole corpus."""
+        texts = [self.model.passage_prefix + chunk.text for chunk in self.chunks]
+        keys = [hashlib.sha256(t.encode()).hexdigest() for t in texts]
+        store = cache_dir / f"{_slug(self.model)}.npz" if cache_dir else None
+        cached: dict[str, np.ndarray] = {}
+        if store and store.exists():
+            with np.load(store) as data:
+                cached = dict(zip(data["keys"].tolist(), data["vectors"], strict=True))
+        missing = sorted({i for i, key in enumerate(keys) if key not in cached})
+        if missing:
+            fresh = self._encode([texts[i] for i in missing])
+            cached.update({keys[i]: vector for i, vector in zip(missing, fresh, strict=True)})
+            if store:
+                store.parent.mkdir(parents=True, exist_ok=True)
+                tmp = store.with_suffix(".part.npz")
+                np.savez(tmp, keys=np.array(list(cached)), vectors=np.stack(list(cached.values())))
+                tmp.replace(store)
+        return np.stack([cached[key] for key in keys]).astype(np.float32)
 
     def _encode(self, texts: list[str]) -> np.ndarray:
         vectors = self.encoder.encode(texts, batch_size=16, normalize_embeddings=True)

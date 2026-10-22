@@ -18,6 +18,7 @@ fetch family_code_ar.pdf "2024/07/22/مدونة الأسرة-1721646687560.pdf"
 fetch family_code_fr.pdf "2024/12/12/DAHIR N° 1-04-22 PORTANT PROMULGATION DE LA LOI.PDF-1734012188728.pdf"
 fetch rental_law_ar.pdf "2026/04/15/ظهير شريف رقم 1.13.111 صادر في-1776242288111.pdf"
 fetch obligations_contracts_ar.pdf "2024/10/24/ظهير بمثابة قانون الالتزامات والعقود-1729777400387.pdf"
+fetch commercial_lease_ar.pdf "2024/02/07/كراء العقارات والمحلات المخصصة للاستعمال التجاري أو الصناعي أو الحرفي-1707314492701.pdf"
 fetch obligations_contracts_fr.pdf "2024/02/28/Code des Obligations et des Contrats_compressed-1709126934943.pdf"
 
 shasum -a 256 -c ../SHA256SUMS

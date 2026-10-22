@@ -150,3 +150,45 @@ def test_answer_table_renders_groups():
     }
     table = answer_table([row])
     assert "| all | 1 | 1.00 |" in table and "| lang=msa | 1 |" in table
+
+
+class _AllChunks:
+    def __init__(self, chunks):
+        self.chunks = chunks
+
+    def retrieve(self, query, k=10):
+        return [(c, 1.0) for c in self.chunks][:k]
+
+
+def _scripted(*replies):
+    replies = iter(replies)
+    return FakeLLM(lambda _: next(replies))
+
+
+def test_wrong_language_answer_is_rewritten(chunks):
+    llm = _scripted("مدة الشغل هي 44 ساعة في الأسبوع [1].", "إيه، خاصك تخدم 44 ساعة فالسيمانة [1].")
+    answer = Answerer(_AllChunks(chunks), llm).ask("شحال من ساعة خاصني نخدم فالسيمانة؟")
+    assert answer.language_fixed and answer.text.startswith("إيه")
+    assert [c.page for c in answer.cited_chunks] == [1]
+    assert len(llm.calls) == 2 and "fix_s" in answer.timings
+
+
+def test_fix_that_drops_a_citation_is_rejected(chunks):
+    llm = _scripted("44 heures [1] et 24 heures [2].", "44 heures [1].")
+    answer = Answerer(_AllChunks(chunks), llm).ask("chhal mn sa3a khasni nkhdem f simana?")
+    assert not answer.language_fixed
+    assert answer.text == "44 heures [1] et 24 heures [2]."
+
+
+def test_answers_in_the_right_language_skip_the_fix(chunks):
+    llm = _scripted("Le salarié travaille 44 heures par semaine [1].")
+    answer = Answerer(_AllChunks(chunks), llm).ask("Combien d'heures par semaine ?")
+    assert not answer.language_fixed and len(llm.calls) == 1
+
+
+def test_language_ok():
+    from darija_rag.answer import language_ok
+
+    assert language_ok("44 sa3a f simana [1]", "arabizi")
+    assert not language_ok("مدة الشغل 44 ساعة [1]", "arabizi")
+    assert language_ok("أي جواب", "msa")

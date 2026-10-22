@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0
+
+- Commercial lease law 49.16 (Arabic) added: 8 documents, 2,293 chunks.
+- Answer language check: when the answer is in a different language than the question (Darija,
+  Arabizi or French), one rewrite pass fixes it. The fix is kept only if every `[n]` citation
+  survives. New `language_match` column in `eval-answers`.
+- Per-chunk embedding cache: adding a document embeds only its new chunks, not the whole corpus.
+- Glossary: الحانوت, الساروت, السومة (47 entries). Darija answer markers (إيه, كاين, ماشي) added to
+  the detector.
+- Eval set: 282 questions (24 new on commercial leases).
+
 ## 0.3.0
 
 - MIT license.

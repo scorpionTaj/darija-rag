@@ -167,3 +167,13 @@ def test_stratified_sample_covers_every_cell():
     assert 19 <= len(sample) <= 22
     assert ids == sorted(ids, key=[q["id"] for q in questions].index)  # file order kept
     assert stratified_sample(questions, 20, seed=1) == sample  # deterministic
+
+
+def test_dense_cache_embeds_only_new_chunks(tmp_path):
+    encoder = _FakeEncoder()
+    model = EmbeddingModel("fake", "query: ", "passage: ")
+    DenseRetriever(CHUNKS[:2], model, tmp_path, encoder=encoder)
+    assert len(encoder.calls[-1]) == 2
+    dense = DenseRetriever(CHUNKS, model, tmp_path, encoder=encoder)
+    assert encoder.calls[-1] == ["passage: " + CHUNKS[2].text]  # only the new chunk
+    assert dense.embeddings.shape[0] == 3
