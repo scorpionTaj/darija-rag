@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Darija RAG</title>
+<style>
+  :root {
+    --bg: #f7f6f3; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6a66; --line: #e3e1db;
+    --accent: #0b6e4f; --accent-soft: #e3f1ec; --warn: #9a5b00; --warn-soft: #fbf0dc;
+    --user: #ece9e1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --panel: #1f1f1d; --text: #ecebe6; --muted: #a09f99; --line: #33332f;
+      --accent: #4fc39a; --accent-soft: #1d3a30; --warn: #f0b45a; --warn-soft: #3a2e1a;
+      --user: #2a2a27;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.6 system-ui, "Segoe UI", "Noto Sans Arabic", Tahoma, sans-serif; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+           padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+           position: sticky; top: 0; z-index: 1; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header small { color: var(--muted); }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+  select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--text); }
+  .status { font-size: 13px; color: var(--muted); }
+  .status.ok::before { content: "●"; color: var(--accent); margin-inline-end: 4px; }
+  .status.bad::before { content: "●"; color: var(--warn); margin-inline-end: 4px; }
+  main { max-width: 860px; margin: 0 auto; padding: 16px 16px 140px; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 20px; }
+  .examples button { font: inherit; font-size: 14px; border: 1px solid var(--line);
+                     background: var(--panel); color: var(--text); border-radius: 16px;
+                     padding: 4px 12px; cursor: pointer; }
+  .examples button:hover { border-color: var(--accent); }
+  .msg { margin: 14px 0; padding: 12px 14px; border-radius: 10px; unicode-bidi: plaintext; }
+  .msg.user { background: var(--user); }
+  .msg.bot { background: var(--panel); border: 1px solid var(--line); }
+  .msg.abstain { background: var(--warn-soft); border-color: transparent; }
+  .msg.error { background: var(--warn-soft); color: var(--warn); }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .cite { display: inline-block; font-size: 12px; background: var(--accent-soft);
+          color: var(--accent); border-radius: 4px; padding: 0 5px; margin: 0 1px;
+          cursor: pointer; direction: ltr; }
+  details { margin-top: 8px; font-size: 14px; }
+  details summary { cursor: pointer; color: var(--muted); }
+  .source { border-inline-start: 3px solid var(--line); padding: 4px 10px; margin: 8px 0;
+            unicode-bidi: plaintext; }
+  .source.cited { border-color: var(--accent); }
+  .source b { direction: ltr; unicode-bidi: isolate; }
+  form { position: fixed; bottom: 0; left: 0; right: 0; background: var(--panel);
+         border-top: 1px solid var(--line); padding: 12px 16px; }
+  form .row { max-width: 860px; margin: 0 auto; display: flex; gap: 8px; }
+  textarea { flex: 1; font: inherit; padding: 10px; border-radius: 8px; resize: none;
+             border: 1px solid var(--line); background: var(--bg); color: var(--text);
+             unicode-bidi: plaintext; min-height: 48px; }
+  button.send { font: inherit; border: 0; border-radius: 8px; background: var(--accent);
+                color: #fff; padding: 0 18px; cursor: pointer; }
+  button.send:disabled { opacity: .5; cursor: wait; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Darija RAG · مدونة الشغل ومدونة الأسرة</h1>
+    <small dir="ltr">Questions in Darija, Arabizi, MSA or French, answered from Moroccan law with citations</small>
+  </div>
+  <div class="controls" dir="ltr">
+    <label>Retriever
+      <select id="retriever">
+        <option value="">server default</option>
+        <option>dense-m3+rewrite+rerank</option>
+        <option>dense-m3+rerank</option>
+        <option>dense-m3+rewrite</option>
+        <option>hybrid-m3+rewrite+rerank</option>
+        <option>dense-m3</option>
+        <option>bm25+rewrite</option>
+        <option>bm25</option>
+      </select>
+    </label>
+    <label>Sources <select id="k"><option>3</option><option selected>5</option><option>8</option></select></label>
+    <span id="status" class="status">checking…</span>
+  </div>
+</header>
+<main>
+  <div class="examples" id="examples"></div>
+  <div id="log" aria-live="polite"></div>
+</main>
+<form id="form">
+  <div class="row">
+    <textarea id="q" dir="auto" rows="1" placeholder="سول على حقوقك… / Posez votre question… / swel 3la 7o9o9ek…" maxlength="1000"></textarea>
+    <button class="send" id="send" type="submit">Ask</button>
+  </div>
+</form>
+<script>
+const EXAMPLES = [
+  "شحال من ساعة خاصني نخدم فالسيمانة؟",
+  "chhal katdom periode d'essai f lkhedma?",
+  "ما هي مدة إجازة الولادة للأجيرة؟",
+  "À qui revient la garde des enfants après un divorce ?",
+  "راجلي ما بقاش كيصرف عليا، واش نقدر نطلب الطلاق؟",
+  "Quel est le taux de TVA au Maroc ?",
+];
+const $ = (id) => document.getElementById(id);
+const log = $("log");
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+// Render answer text, turning [n] into clickable citation chips (no innerHTML: text is untrusted).
+function renderAnswer(container, text, onCite) {
+  const parts = text.split(/(\[\d+\])/);
+  for (const part of parts) {
+    const m = part.match(/^\[(\d+)\]$/);
+    if (m) {
+      const chip = el("span", "cite", m[1]);
+      chip.title = "show source " + m[1];
+      chip.onclick = () => onCite(Number(m[1]));
+      container.append(chip);
+    } else {
+      container.append(document.createTextNode(part));
+    }
+  }
+}
+
+function addMessage(cls, text) {
+  const node = el("div", "msg " + cls, text);
+  node.dir = "auto";
+  log.append(node);
+  node.scrollIntoView({ behavior: "smooth", block: "end" });
+  return node;
+}
+
+function showAnswer(data) {
+  const node = el("div", "msg bot" + (data.abstained ? " abstain" : ""));
+  node.dir = "auto";
+  const body = el("div");
+  const details = el("details");
+  const cited = new Set(data.citations.map((c) => c.n));
+  const sourceNodes = {};
+  renderAnswer(body, data.answer, (n) => {
+    details.open = true;
+    sourceNodes[n]?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+  node.append(body);
+
+  details.append(el("summary", null, `Sources (${data.sources.length})`));
+  for (const s of data.sources) {
+    const src = el("div", "source" + (cited.has(s.n) ? " cited" : ""));
+    src.dir = "auto";
+    src.append(el("b", null, `[${s.n}] ${s.doc} · p.${s.page}`), el("br"), document.createTextNode(s.text));
+    sourceNodes[s.n] = src;
+    details.append(src);
+  }
+  node.append(details);
+
+  const meta = [];
+  if (data.retrieval_query && data.retrieval_query !== data.question) meta.push("searched as: " + data.retrieval_query);
+  meta.push(`${data.variety} · ${data.retriever} · ${data.model || "?"} · ${data.timings.total_s}s`);
+  const metaNode = el("div", "meta", meta.join("  ·  "));
+  metaNode.dir = "auto";
+  node.append(metaNode);
+  log.append(node);
+  node.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+async function ask(question) {
+  addMessage("user", question);
+  $("send").disabled = true;
+  const pending = addMessage("bot", "…");
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, k: Number($("k").value), retriever: $("retriever").value || null }),
+    });
+    const data = await res.json();
+    pending.remove();
+    if (!res.ok) {
+      const detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+      addMessage("error", detail);
+    } else {
+      data.question = question;
+      showAnswer(data);
+    }
+  } catch (err) {
+    pending.remove();
+    addMessage("error", "Request failed: " + err);
+  } finally {
+    $("send").disabled = false;
+  }
+}
+
+$("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const q = $("q").value.trim();
+  if (!q) return;
+  $("q").value = "";
+  ask(q);
+});
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); }
+});
+for (const q of EXAMPLES) {
+  const b = el("button", null, q);
+  b.type = "button"; b.dir = "auto";
+  b.onclick = () => ask(q);
+  $("examples").append(b);
+}
+fetch("/api/health").then((r) => r.json()).then((h) => {
+  const s = $("status");
+  if (h.llm?.ok) { s.className = "status ok"; s.textContent = `${h.chunks} chunks · ${h.llm.model}`; }
+  else { s.className = "status bad"; s.textContent = h.detail || "LLM offline: start LM Studio server"; s.title = h.llm?.error || ""; }
+}).catch(() => { $("status").className = "status bad"; $("status").textContent = "API unreachable"; });
+</script>
+</body>
+</html>

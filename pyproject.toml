@@ -9,8 +9,11 @@ description = "Arabic/Darija retrieval-augmented QA over Moroccan legal texts, w
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "fastapi>=0.116,<1",
+    "httpx>=0.28,<1",
     "numpy>=2.0,<3",
     "pymupdf>=1.26,<2",
+    "uvicorn[standard]>=0.35,<1",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +26,9 @@ darija-rag = "darija_rag.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+darija_rag = ["web/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
