@@ -2,7 +2,8 @@
 
 Ask Moroccan law questions the way people actually ask them, in **Darija, Arabizi
 (`chhal mn sa3a khasni nkhdem?`), Modern Standard Arabic or French**, and get answers grounded in
-the official Labour Code and Family Code, with page citations. When the documents don't contain
+seven official texts (Labour Code, Family Code, rental law 67.12, and the Code of Obligations and
+Contracts, in Arabic and French), with page citations. When the documents don't contain
 the answer, the system says so instead of guessing.
 
 Everything runs locally: OCR, retrieval and reranking on your machine, and the LLM through any
@@ -22,23 +23,36 @@ Sources:
 
 ## Results
 
-Retrieval on 180 answerable questions (see [docs/evaluation.md](docs/evaluation.md)). Cells show
-Recall@10, with Recall@1 in brackets.
+Retrieval on the 240 answerable questions over all 7 documents (2,260 chunks; see
+[docs/evaluation.md](docs/evaluation.md)). Cells show Recall@10, with Recall@1 in brackets.
+
+| Retriever | All | MSA | Darija | Arabizi | French |
+|---|---|---|---|---|---|
+| `bm25` (baseline) | 0.64 (0.38) | 0.92 | 0.24 | 0.10 | 0.79 |
+| `bm25+rewrite` | 0.75 (0.41) | 0.92 | 0.48 | 0.55 | 0.79 |
+| `dense-m3` (BGE-M3) | 0.72 (0.40) | 0.93 | 0.48 | 0.10 | 0.87 |
+| **`dense-m3+rewrite+rerank`** (default) | **0.94 (0.67)** | 0.96 | **0.96** | **0.90** | 0.91 |
+
+The default holds up as the corpus grew 2.8× (Recall@10 0.95 → 0.94). On the original
+3-document corpus, Arabizi was at 0.86; the glossary hints bring it to 0.90 on the larger one.
+The weak spot is French questions about the rental law, which exists only in Arabic: 1 of 4 is
+found (`type=cross_lingual`).
+
+Ablations on the original 3-document corpus (180 questions):
 
 | Retriever | All | MSA | Darija | Arabizi | French | FR→AR cross-lingual |
 |---|---|---|---|---|---|---|
-| `bm25` (baseline) | 0.62 (0.39) | 0.97 | 0.30 | 0.14 | 0.59 | 0.00 |
 | `dense` (e5-small) | 0.63 (0.32) | 0.96 | 0.25 | 0.14 | 0.68 | 0.00 |
-| `dense-m3` (BGE-M3) | 0.76 (0.38) | 0.97 | 0.59 | 0.14 | 0.85 | 0.62 |
+| `dense-m3` | 0.76 (0.38) | 0.97 | 0.59 | 0.14 | 0.85 | 0.62 |
 | `dense-m3+rerank` | 0.79 (0.61) | 1.00 | 0.61 | 0.19 | 0.93 | 0.77 |
-| `bm25+rewrite` | 0.75 (0.43) | 0.97 | 0.57 | 0.67 | 0.59 | 0.00 |
 | `dense-m3+rewrite` | 0.88 (0.43) | 0.97 | 0.75 | 0.86 | 0.85 | 0.62 |
-| **`dense-m3+rewrite+rerank`** (default) | **0.95 (0.72)** | 1.00 | **0.93** | **0.86** | 0.93 | 0.77 |
+| `dense-m3+rewrite+rerank` | 0.95 (0.72) | 1.00 | 0.93 | 0.86 | 0.93 | 0.77 |
 | `hybrid-m3+rewrite+rerank` | 0.95 (0.72) | 1.00 | 0.95 | 0.86 | 0.90 | 0.69 |
 
-What each stage contributes:
+What each stage contributes (3-document ablations):
 - **BGE-M3 instead of e5-small** doubles Darija recall and makes French questions about the
-  Arabic-only Family Code answerable (0.00 → 0.62).
+  Family Code answerable from its Arabic text (0.00 → 0.62). That corpus had no French Family
+  Code yet.
 - **Rewriting Darija and Arabizi into MSA** with the LLM is the biggest single gain for dialect
   questions: Arabizi goes from 0.14 to 0.86. MSA and French skip this step and its latency.
 - **The cross-encoder reranker** mostly improves the top rank: Recall@1 goes from 0.43 to 0.72.
@@ -140,6 +154,16 @@ verifies `data/SHA256SUMS`.
 | `labour_code_ar.pdf` | مدونة الشغل (Law 65.99), consolidated, uploaded July 2026 | 162 | OCR |
 | `labour_code_fr.pdf` | Code du travail, consolidated to 26 October 2011 | 201 | text layer |
 | `family_code_ar.pdf` | مدونة الأسرة (Law 70.03), 2021 update | 107 | OCR |
+| `family_code_fr.pdf` | Code de la famille, consolidated 2016 | 112 | text layer |
+| `rental_law_ar.pdf` | قانون 67.12 (residential and professional leases), consolidated 2019 | 27 | OCR |
+| `obligations_contracts_ar.pdf` | ظهير الالتزامات والعقود | 275 | OCR |
+| `obligations_contracts_fr.pdf` | Code des obligations et des contrats, consolidated 2021 | 312 | text layer |
+
+No official French version of the rental law is online, so French rental questions are answered
+from the Arabic text. That's what the `cross_lingual` eval questions measure. Darija has no
+official legal texts at all. It is covered by a 44-entry Darija/Arabizi → MSA legal glossary
+(`src/darija_rag/data/darija_glossary.tsv`), which feeds dialect detection and gives the query
+rewriter term hints (`lkari` → المكتري, `jraw 3liya` → الفصل من الشغل).
 
 The Arabic PDFs' text layers are unusable: they swap lam-alef ligatures (مولانا comes out as موالنا)
 and scramble letters inside words. Tesseract OCR gives clean text. The French code predates the
@@ -170,6 +194,11 @@ Start with [docs/architecture.md](docs/architecture.md) for the pipeline diagram
 - **Legal currency.** The texts are the consolidated versions listed above. This is not legal
   advice.
 
+## License
+
+[MIT](LICENSE) © 2026 Tajeddine Bourhim. The legal texts in `data/raw/` aren't part of this
+repository. `scripts/fetch_corpus.sh` downloads them from the Ministry of Justice portal.
+
 ## Roadmap
 
 - [x] Ingestion with Arabic OCR, normalization, BM25 from scratch
@@ -179,6 +208,7 @@ Start with [docs/architecture.md](docs/architecture.md) for the pipeline diagram
 - [x] Cited answers with abstention; LLM judge; latency
 - [x] FastAPI service, chat UI, Docker, CI
 - [ ] Answer in the question's dialect more reliably; Arabizi answers are inconsistent
-- [ ] Bulletin Officiel issues and the Code des obligations et contrats
+- [x] Code of Obligations and Contracts, rental law 67.12, French Family Code
+- [ ] Bulletin Officiel issues; commercial leases (law 49.16)
 - [ ] Streaming answers in the UI
 - [ ] A second annotator for the eval set

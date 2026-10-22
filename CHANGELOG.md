@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+- MIT license.
+- Corpus grown from 3 to 7 official documents (818 → 2,260 chunks): Family Code in French, rental
+  law 67.12 (Arabic), and the Code of Obligations and Contracts in Arabic and French.
+- Darija/Arabizi → MSA legal glossary (`src/darija_rag/data/darija_glossary.tsv`, 44 entries).
+  It extends dialect detection and adds term hints to the rewrite prompt. French loanwords
+  (contrat, salaire) no longer count as Arabizi evidence.
+- Rewrite cache tagged with a prompt/glossary id, so stale rewrites are discarded.
+- Eval set: 258 questions. 58 are new (rental law, obligations and contracts), the 2 rent questions
+  formerly out of scope now have answers, and every Family Code question also lists its French page.
+
 ## 0.2.0
 
 - Eval set grown to 200 questions: Arabizi, cross-lingual (French → Arabic-only source), 20

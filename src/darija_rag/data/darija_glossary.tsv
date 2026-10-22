@@ -1,0 +1,46 @@
+# Darija / Arabizi -> MSA legal vocabulary. Columns: darija | arabizi variants (comma-separated) | msa | detect
+# detect=1: the Darija form never appears in MSA legal text, so it also marks a question as Darija.
+darija	arabizi	msa	detect
+الكاري,لكاري	lkari,kari	المكتري	1
+مول الدار,مالين الدار,مول الكرا	mol dar,mol lkra	المكري	1
+الكرا,الكرى	lkra,lkera	الوجيبة الكرائية	1
+نخرج الكاري,نخوي,يخوي	nkhwi,ykhwi,nkhrej	الإفراغ	1
+الكونطرا,الكونطرات	contrat,lcontrat	العقد	1
+الباطرون,الپاطرون	patron,lpatron	المشغل	1
+خدام,خدامة	khdam,khdama	الأجير	1
+الخدمة	lkhedma,lkhdma	الشغل	0
+السيمانة	simana,ssimana	الأسبوع	1
+الكونجي	conge,congé,lconge	العطلة	1
+الخلصة,الصالير	lkhlsa,salaire	الأجر	1
+جراو عليا,طردوني,جرا عليا	jraw 3liya,jra 3liya,tredouni	الفصل من الشغل	1
+السوايع الزايدة	heures sup,swaye3 zayda	الساعات الإضافية	1
+فترة التجربة	periode d'essai	فترة الاختبار	1
+لاكناس,الضمان الاجتماعي	cnss	الضمان الاجتماعي	1
+راجلي	rajli	زوجي	1
+مراتي	mrati	زوجتي	1
+المرا	lmra	المرأة	1
+الدراري,الولاد	drari,wlad	الأطفال	1
+المصروف	masrouf,nafa9a	النفقة	1
+الطلاق	tla9,tlaq	الطلاق	0
+الحضانة	l7adana,hadana	الحضانة	0
+العرس	l3ers,3ers	الزواج	1
+الصداق	sda9,sdaq	الصداق	0
+الورث	lwert,wert	الإرث	1
+الوصية	lwasiya,wasiya	الوصية	0
+الكريدي,السلف	credit,lcredit,sslf	القرض	1
+الفايدة,الفوايد	lfayda	الفائدة	1
+البيع والشرا	bi3,chra	البيع	1
+الضرر	dorr,ddarar	الضرر	0
+التعويض	ta3wid	التعويض	0
+الدار	dar,ddar	المحل	0
+شحال,قداش	chhal,ch7al,9addach	كم	1
+واش	wach,wash	هل	1
+كيفاش	kifach,kifash	كيف	1
+علاش	3lach,3lash	لماذا	1
+فين	fayn	أين	1
+إمتى,فوقاش	imta,fo9ach	متى	1
+خاصني,خصني	khasni,khassni	يجب علي	1
+نقدر	n9der	يمكنني	1
+ما بقاش	ma b9ach	لم يعد	1
+دابا	daba	الآن	1
+بزاف	bzaf	كثيرا	1

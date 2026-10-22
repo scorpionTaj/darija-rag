@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "darija-rag"
-version = "0.1.0"
+version = "0.3.0"
 description = "Arabic/Darija retrieval-augmented QA over Moroccan legal texts, with an evaluation harness"
 readme = "README.md"
 license = "MIT"
@@ -30,7 +30,7 @@ darija-rag = "darija_rag.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-darija_rag = ["web/*"]
+darija_rag = ["web/*", "data/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

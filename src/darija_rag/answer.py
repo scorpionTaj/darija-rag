@@ -24,11 +24,14 @@ _LANGUAGE_RULE = {
 }
 
 ABSTENTION = {
-    "msa": "لا أجد جوابا لهذا السؤال في النصوص المتوفرة (مدونة الشغل ومدونة الأسرة).",
-    "darija": "ما لقيتش الجواب ديال هاد السؤال فالنصوص اللي عندي (مدونة الشغل ومدونة الأسرة).",
-    "arabizi": "Ma l9itch jawab dyal had so2al f nossos li 3ndi (mdawanat cheghl w l2osra).",
+    "msa": "لا أجد جوابا لهذا السؤال في النصوص المتوفرة (مدونة الشغل، مدونة الأسرة، قانون "
+    "الكراء، قانون الالتزامات والعقود).",
+    "darija": "ما لقيتش الجواب ديال هاد السؤال فالنصوص اللي عندي (مدونة الشغل، مدونة الأسرة، "
+    "قانون الكرا، قانون الالتزامات والعقود).",
+    "arabizi": "Ma l9itch jawab dyal had so2al f nossos li 3ndi (cheghl, l2osra, lkra, "
+    "l2iltizamat w l3o9oud).",
     "other": "Je ne trouve pas la réponse dans les textes disponibles (Code du travail, "
-    "Code de la famille).",
+    "Code de la famille, loi 67-12 sur les baux, Code des obligations et des contrats).",
 }
 
 _SYSTEM = (

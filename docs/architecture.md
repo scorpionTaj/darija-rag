@@ -66,7 +66,7 @@ eval harness all accept the same strings.
 
 - **OCR over the PDF text layer for Arabic.** The official PDFs swap lam-alef ligatures and scramble
   letters. Tesseract runs as a CLI because PyMuPDF's OCR wrapper reverses some RTL lines.
-- **Brute-force cosine, no vector database.** 818 chunks × 1024 dims is about 3 MB. A pgvector or
+- **Brute-force cosine, no vector database.** 2,260 chunks × 1024 dims is about 9 MB. A pgvector or
   FAISS index adds a service and buys nothing until the corpus is about 100× larger.
 - **Rewrite only Darija and Arabizi, and fuse with the original query.** MSA and French skip the LLM
   call and its latency. Fusing means a bad rewrite cannot make things worse than no rewrite.

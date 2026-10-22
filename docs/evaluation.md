@@ -29,13 +29,17 @@ One JSON object per line:
 
 The older `{"doc": ..., "page": ...}` form is still accepted.
 
-### Current set: 200 questions
+### Current set: 258 questions
 
 |               | msa | darija | arabizi | fr | total |
 | ------------- | --- | ------ | ------- | -- | ----- |
-| factual       | 74  | 44     | 21      | 28 | 167   |
-| cross_lingual | –  | –     | –      | 13 | 13    |
-| unanswerable  | 6   | 5      | 3       | 6  | 20    |
+| factual       | 104 | 54     | 29      | 49 | 236   |
+| cross_lingual | –   | –      | –       | 4  | 4     |
+| unanswerable  | 6   | 4      | 2       | 6  | 18    |
+
+By document: Labour Code 95 (the Arabic and French pages both count), Family Code 85 (Arabic and
+French), Code of Obligations and Contracts 29 (Arabic and French), rental law 67.12 31 (Arabic
+only, so its French questions are the `cross_lingual` ones).
 
 ### Writing rules
 

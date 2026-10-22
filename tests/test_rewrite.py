@@ -35,7 +35,7 @@ def test_rewriter_skips_msa_and_caches_darija(tmp_path):
     rewriter.rewrite(darija)
     assert len(llm.calls) == 1
     # Persisted, so a new process reuses it without calling the LLM.
-    assert json.loads(cache.read_text("utf-8"))[darija].startswith("ما هي")
+    assert json.loads(cache.read_text("utf-8"))["rewrites"][darija].startswith("ما هي")
     assert QueryRewriter(FakeLLM(lambda _: "unused"), cache).rewrite(darija).startswith("ما هي")
 
 
@@ -47,3 +47,29 @@ def test_rewrite_retriever_finds_page_the_darija_query_misses(chunks):
     rewriter = QueryRewriter(FakeLLM(lambda _: "ما هي مدة العمل الأسبوعية للأجير؟"))
     [(top, _), *_] = RewriteRetriever(base, rewriter).retrieve(darija, 3)
     assert (top.doc, top.page) == ("labour.pdf", 1)
+
+
+def test_glossary_hints_reach_the_rewrite_prompt():
+    from darija_rag.rewrite import glossary_hints
+
+    assert "lkari = المكتري" in glossary_hints("kifach nkhrej lkari men dari?")
+    assert "مول الدار = المكري" in glossary_hints("مول الدار بغا يزيد فالكرا")
+    assert glossary_hints("ما هي مدة الشغل؟") == []
+
+    llm = FakeLLM(lambda _: "كيف يتم إفراغ المكتري؟")
+    QueryRewriter(llm).rewrite("kifach nkhrej lkari men dari?")
+    assert "lkari = المكتري" in llm.calls[0][-1]["content"]
+
+
+def test_cache_from_another_prompt_is_ignored(tmp_path):
+    cache = tmp_path / "rewrites.json"
+    question = "شحال من ساعة خاصني نخدم فالسيمانة؟"
+    cache.write_text(json.dumps({"prompt_id": "old", "rewrites": {question: "stale"}}), "utf-8")
+    llm = FakeLLM(lambda _: "fresh")
+    assert QueryRewriter(llm, cache).rewrite(question) == "fresh"
+    assert len(llm.calls) == 1
+
+
+def test_french_loanwords_do_not_make_french_arabizi():
+    assert detect_variety("Mon patron refuse de payer mon salaire") == "other"
+    assert detect_variety("lpatron ma bghach y3tini lkhlsa") == "arabizi"
