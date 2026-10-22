@@ -19,7 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 # Dense/hybrid retrieval. PyTorch has no Python 3.15 wheels yet, hence .python-version.
 dense = ["sentence-transformers>=3,<6"]
-dev = ["pytest>=8.4,<9", "ruff>=0.12,<1"]
+dev = ["pytest>=8.4,<10", "ruff>=0.12,<1"]
 
 [project.scripts]
 darija-rag = "darija_rag.cli:main"
