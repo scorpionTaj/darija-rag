@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from darija_rag.bm25 import BM25
-from darija_rag.dense import DenseRetriever
+from darija_rag.dense import DenseRetriever, EmbeddingModel
 from darija_rag.evaluate import evaluate
 from darija_rag.ingest import Chunk
 from darija_rag.retrieval import BM25Retriever, HybridRetriever
@@ -39,10 +39,12 @@ def test_evaluate_reports_recall_and_mrr():
         {"question": "ساعات العمل", "doc": "labour.pdf", "page": 1},
         {"question": "شيء غير موجود", "doc": "labour.pdf", "page": 9},
     ]
+    for number, q in enumerate(questions, start=1):
+        q.update(id=f"line{number}", relevant=[{"doc": q.pop("doc"), "page": q.pop("page")}])
     report = evaluate(retriever.retrieve, questions, ks=(1, 3))
     assert report["recall@1"] == pytest.approx(2 / 3)
     assert report["mrr@3"] == pytest.approx(2 / 3)
-    assert report["misses"] == ["شيء غير موجود"]
+    assert report["misses"] == ["line3"]
 
 
 class _Fixed:
@@ -72,11 +74,96 @@ class _FakeEncoder:
 
 def test_dense_retriever_uses_e5_prefixes_and_caches(tmp_path):
     encoder = _FakeEncoder()
-    dense = DenseRetriever(CHUNKS, "fake", tmp_path, model=encoder)
+    dense = DenseRetriever(
+        CHUNKS, EmbeddingModel("fake", "query: ", "passage: "), tmp_path, encoder=encoder
+    )
     assert all(t.startswith("passage: ") for t in encoder.calls[0])
     [(top, _)] = dense.retrieve("الزوجية", k=1)
     assert top.doc == "family.pdf"
     assert encoder.calls[-1] == ["query: الزوجية"]
 
-    DenseRetriever(CHUNKS, "fake", tmp_path, model=encoder)
+    DenseRetriever(
+        CHUNKS, EmbeddingModel("fake", "query: ", "passage: "), tmp_path, encoder=encoder
+    )
     assert len(encoder.calls) == 2  # passages came from the cache, not re-encoded
+
+
+def test_load_questions_accepts_both_schemas(tmp_path):
+    from darija_rag.evaluate import group, load_questions
+
+    path = tmp_path / "q.jsonl"
+    path.write_text(
+        '{"question": "a", "doc": "x.pdf", "page": 3, "lang": "msa"}\n'
+        '{"id": "q2", "question": "b", "lang": "fr", "relevant": []}\n'
+        '{"id": "q3", "question": "c", "lang": "fr", "type": "cross_lingual",'
+        ' "relevant": [{"doc": "x.pdf", "page": 1}, {"doc": "y.pdf", "page": 2}]}\n',
+        encoding="utf-8",
+    )
+    first, second, third = load_questions(path)
+    assert first["relevant"] == [{"doc": "x.pdf", "page": 3}] and first["type"] == "factual"
+    assert second["type"] == "unanswerable"
+    assert set(group([first, second, third])) == {
+        "all",
+        "lang=fr",
+        "lang=msa",
+        "type=cross_lingual",
+        "type=factual",
+        "type=unanswerable",
+    }
+
+
+def test_load_questions_rejects_bad_pages(tmp_path):
+    from darija_rag.evaluate import load_questions
+
+    path = tmp_path / "q.jsonl"
+    path.write_text('{"question": "a", "relevant": [{"doc": "x", "page": true}]}\n', "utf-8")
+    with pytest.raises(ValueError):
+        load_questions(path)
+
+
+def test_any_relevant_page_counts():
+    from darija_rag.evaluate import first_relevant_rank
+
+    q = {"relevant": [{"doc": "family.pdf", "page": 5}, {"doc": "labour.pdf", "page": 2}]}
+    results = [(CHUNKS[0], 1.0), (CHUNKS[1], 0.9), (CHUNKS[2], 0.8)]
+    assert first_relevant_rank(q, results) == 2
+
+
+def test_rerank_reorders_shortlist():
+    from darija_rag.rerank import RerankRetriever
+
+    class Scorer:
+        def predict(self, pairs, batch_size):
+            return [len(text) for _, text in pairs]  # longest chunk wins
+
+    reranked = RerankRetriever(_Fixed([0, 1, 2]), model=Scorer()).retrieve("q", k=2)
+    longest = max(CHUNKS, key=lambda c: len(c.text))
+    assert reranked[0][0] == longest and len(reranked) == 2
+
+
+def test_rerank_scores_the_transformed_query():
+    from darija_rag.rerank import RerankRetriever
+
+    seen = []
+
+    class Scorer:
+        def predict(self, pairs, batch_size):
+            seen.extend(q for q, _ in pairs)
+            return [0.0] * len(pairs)
+
+    RerankRetriever(_Fixed([0, 1]), model=Scorer(), query_for=lambda q: "MSA:" + q).retrieve("x")
+    assert set(seen) == {"MSA:x"}
+
+
+def test_stratified_sample_covers_every_cell():
+    from darija_rag.evaluate import stratified_sample
+
+    questions = [{"id": f"m{i}", "lang": "msa", "type": "factual"} for i in range(90)]
+    questions += [{"id": f"a{i}", "lang": "arabizi", "type": "factual"} for i in range(9)]
+    questions += [{"id": "u0", "lang": "fr", "type": "unanswerable"}]
+    sample = stratified_sample(questions, 20, seed=1)
+    ids = [q["id"] for q in sample]
+    assert "u0" in ids and sum(i.startswith("a") for i in ids) == 2
+    assert 19 <= len(sample) <= 22
+    assert ids == sorted(ids, key=[q["id"] for q in questions].index)  # file order kept
+    assert stratified_sample(questions, 20, seed=1) == sample  # deterministic

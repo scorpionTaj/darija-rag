@@ -1,43 +1,139 @@
 # darija-rag
 
-Question answering over Moroccan legal texts (Labour Code, Family Code) for questions asked in
-**Modern Standard Arabic, Darija or French**, with source citations and a measured evaluation
-harness.
+Ask Moroccan law questions the way people actually ask them, in **Darija, Arabizi
+(`chhal mn sa3a khasni nkhdem?`), Modern Standard Arabic or French**, and get answers grounded in
+the official Labour Code and Family Code, with page citations. When the documents don't contain
+the answer, the system says so instead of guessing.
 
-Status: **weeks 1–2 done**. OCR-based ingestion, Arabic normalization, a BM25 engine written from
-scratch, dense retrieval (multilingual E5), hybrid fusion, and a 75-question eval set split by
-language.
+Everything runs locally: OCR, retrieval and reranking on your machine, and the LLM through any
+OpenAI-compatible server (LM Studio, Bionic, Ollama, or your own gateway).
+
+```
+$ darija-rag ask "chhal mn sa3a khasni nkhdem f simana?"
+(searched as: ما هو عدد ساعات العمل القانونية في الأسبوع؟)
+F l'anachitaat ghayr l-fellahiya, mdat l-choghl l-3adiya hiya 44 sa3a f l-osbou3 [1][2].
+
+Sources:
+  [1] labour_code_ar.pdf p.59: ... المادة 184 تحدد في النشاطات غير الفلاحية مدة الشغل العادية ...
+  [2] labour_code_fr.pdf p.73: ...
+
+(44.1s, arabizi)
+```
+
+## Results
+
+Retrieval on 180 answerable questions (see [docs/evaluation.md](docs/evaluation.md)). Cells show
+Recall@10, with Recall@1 in brackets.
+
+| Retriever | All | MSA | Darija | Arabizi | French | FR→AR cross-lingual |
+|---|---|---|---|---|---|---|
+| `bm25` (baseline) | 0.62 (0.39) | 0.97 | 0.30 | 0.14 | 0.59 | 0.00 |
+| `dense` (e5-small) | 0.63 (0.32) | 0.96 | 0.25 | 0.14 | 0.68 | 0.00 |
+| `dense-m3` (BGE-M3) | 0.76 (0.38) | 0.97 | 0.59 | 0.14 | 0.85 | 0.62 |
+| `dense-m3+rerank` | 0.79 (0.61) | 1.00 | 0.61 | 0.19 | 0.93 | 0.77 |
+| `bm25+rewrite` | 0.75 (0.43) | 0.97 | 0.57 | 0.67 | 0.59 | 0.00 |
+| `dense-m3+rewrite` | 0.88 (0.43) | 0.97 | 0.75 | 0.86 | 0.85 | 0.62 |
+| **`dense-m3+rewrite+rerank`** (default) | **0.95 (0.72)** | 1.00 | **0.93** | **0.86** | 0.93 | 0.77 |
+| `hybrid-m3+rewrite+rerank` | 0.95 (0.72) | 1.00 | 0.95 | 0.86 | 0.90 | 0.69 |
+
+What each stage contributes:
+- **BGE-M3 instead of e5-small** doubles Darija recall and makes French questions about the
+  Arabic-only Family Code answerable (0.00 → 0.62).
+- **Rewriting Darija and Arabizi into MSA** with the LLM is the biggest single gain for dialect
+  questions: Arabizi goes from 0.14 to 0.86. MSA and French skip this step and its latency.
+- **The cross-encoder reranker** mostly improves the top rank: Recall@1 goes from 0.43 to 0.72.
+- **Fusing BM25 back in** adds nothing once the reranker is in place, and it hurts cross-lingual
+  questions, so the default is dense-only.
+
+**Answers** (`gemma-4-12b-it-mlx` in LM Studio generating, same model judging). This is a
+**partial run**: the first 41 questions in file order, all of them Family Code MSA and Darija. The
+full 200-question run takes ~3 hours on a laptop (see [docs/deployment.md](docs/deployment.md)).
+
+| Questions | n | Accuracy | Faithful | Citation hit | False abstention | p50 s |
+|---|---|---|---|---|---|---|
+| all | 41 | 0.95 | 0.98 | 0.88 | 0.00 | 37.1 |
+| Darija | 15 | 0.87 | 1.00 | 0.67 | 0.00 | 37.2 |
+| MSA | 26 | 1.00 | 0.96 | 1.00 | 0.00 | 36.5 |
+
+The Arabizi, French and out-of-scope questions still need a representative run:
+`darija-rag eval-answers eval/questions.jsonl --sample 40 --resume`, then `darija-rag report`.
+The judge is the generator model, so read these scores as optimistic.
 
 ## Quickstart
 
 ```bash
-brew install tesseract tesseract-lang         # Arabic OCR
-uv venv --python 3.13 && uv pip install -e '.[dense,dev]'
-./scripts/fetch_corpus.sh                     # 3 official PDFs from adala.justice.gov.ma, checksummed
-.venv/bin/darija-rag ingest --ocr '*_ar.pdf'  # ~3 min the first time; OCR is cached
-.venv/bin/darija-rag search "العطلة السنوية" -k 5 --retriever hybrid
-.venv/bin/darija-rag eval eval/questions.jsonl --retriever bm25 --retriever dense --retriever hybrid
-.venv/bin/pytest
+brew install tesseract tesseract-lang          # Arabic OCR
+make setup                                     # Python 3.13 venv with PyTorch and dev tools
+make corpus                                    # 3 official PDFs, checksum-verified
+make ingest                                    # OCR + chunking, ~3 min once, then cached
 ```
 
-Python 3.13 is pinned because PyTorch has no 3.15 wheels yet. BM25 alone needs neither PyTorch nor
-the `dense` extra.
+Start an LLM. In LM Studio, load a chat model (tested with `gemma-4-12b-it-mlx`), then go to the
+Developer tab and click **Start Server**. Then:
 
-## Pipeline
+```bash
+.venv/bin/darija-rag ask "واش عندي الحق فنهار راحة فالسيمانة؟"
+make serve                                     # chat UI at http://127.0.0.1:8000
+```
 
-| Stage | Module | Notes |
+The first run downloads BGE-M3 and the reranker from Hugging Face, about 4.5 GB.
+
+### Docker
+
+```bash
+make corpus                                    # on the host
+docker compose run --rm api darija-rag ingest --ocr '*_ar.pdf'
+docker compose up --build                      # http://localhost:8000
+```
+
+The container reaches LM Studio on the host at `host.docker.internal:1234`.
+
+## Usage
+
+| Command | What it does |
+|---|---|
+| `darija-rag ingest --ocr '*_ar.pdf'` | extract, OCR and chunk `data/raw/` into `data/processed/chunks.jsonl` |
+| `darija-rag search QUERY --retriever SPEC` | ranked chunks with scores, no LLM needed unless the spec has `+rewrite` |
+| `darija-rag ask QUESTION` | cited answer or abstention |
+| `darija-rag eval eval/questions.jsonl --retriever A --retriever B` | retrieval table by language and question type |
+| `darija-rag eval-answers eval/questions.jsonl [--sample 40] [--resume]` | answer accuracy, faithfulness, citations, abstention, latency |
+| `darija-rag report [answers.jsonl]` | answer table from finished rows, no LLM |
+| `darija-rag serve` | API and chat UI |
+
+**Retriever specs** are a base (`bm25`, `dense`, `dense-m3`, `hybrid`, `hybrid-m3`) plus optional
+`+rewrite` and `+rerank` stages. The CLI, the API and the eval harness all accept them.
+
+**API**
+
+```bash
+curl -s localhost:8000/api/ask -H 'content-type: application/json' \
+  -d '{"question": "Combien de jours de congé pour une naissance ?", "k": 5}'
+```
+
+The response has `answer`, `abstained`, `variety` (msa / darija / arabizi / other),
+`retrieval_query`, `citations` and `sources` (each with doc, page and text), and `timings`. Other
+endpoints: `POST /api/search` and `GET /api/health`.
+
+## Configuration
+
+| Variable | Default | |
 |---|---|---|
-| Extract | `ingest.read_pages`, `ocr.ocr_pdf` | PyMuPDF text layer, or Tesseract OCR for files matching `--ocr`; 1-based page numbers kept for citations |
-| Chunk | `ingest.chunk_page` | word windows (default 200 words, 50 overlap), never cross page boundaries |
-| Normalize | `normalize.tokenize` | strips diacritics/tatweel; unifies alef variants, ى→ي, ة→ه, Arabic digits→ASCII; strips the article ال and its prefixes; drops stopwords (MSA, Darija, French) |
-| Sparse | `bm25.BM25` | Okapi BM25 (k1=1.5, b=0.75) on an inverted index |
-| Dense | `dense.DenseRetriever` | `intfloat/multilingual-e5-small` with `query:`/`passage:` prefixes, cosine over a cached NumPy matrix |
-| Hybrid | `retrieval.HybridRetriever` | reciprocal rank fusion (k=60) over the top 50 of BM25 and dense |
-| Evaluate | `evaluate.evaluate` | a hit means a chunk from the labeled doc and page is in the top k |
+| `DARIJA_RAG_LLM_URL` | `http://localhost:1234/v1` | any OpenAI-compatible endpoint |
+| `DARIJA_RAG_LLM_MODEL` | loaded LM Studio model | set it explicitly with other servers |
+| `DARIJA_RAG_LLM_KEY` | – | bearer token, if needed |
+| `DARIJA_RAG_JUDGE_MODEL` | generator model | a different judge gives stricter scores |
+| `DARIJA_RAG_RETRIEVER` | `dense-m3+rewrite+rerank` | API default spec |
+| `DARIJA_RAG_DEVICE` | `cpu` | `mps` or `cuda` for the embedding and reranking models |
+| `DARIJA_RAG_CHUNKS` | `data/processed/chunks.jsonl` | |
+
+`DARIJA_RAG_DEVICE` defaults to CPU on purpose. On a Mac where LM Studio runs the LLM on the GPU,
+putting PyTorch on MPS as well made generation slower and retrieval latency erratic: 2–24 s, against
+a steady ~7 s on CPU.
 
 ## Corpus
 
-`scripts/fetch_corpus.sh` downloads these from the Ministry of Justice portal, adala.justice.gov.ma:
+`scripts/fetch_corpus.sh` downloads from the Ministry of Justice portal (adala.justice.gov.ma) and
+verifies `data/SHA256SUMS`.
 
 | File | Text | Pages | Extraction |
 |---|---|---|---|
@@ -45,71 +141,44 @@ the `dense` extra.
 | `labour_code_fr.pdf` | Code du travail, consolidated to 26 October 2011 | 201 | text layer |
 | `family_code_ar.pdf` | مدونة الأسرة (Law 70.03), 2021 update | 107 | OCR |
 
-**Why OCR the Arabic PDFs.** Their embedded text layers are unusable. The Family Code swaps the
-lam-alef ligature (مولانا comes out as موالنا, الله as هللا), and the Labour Code scrambles letters
-inside words. Tesseract (`ara`) gives clean text, apart from some punctuation noise: the Arabic
-comma often comes out as `»` or as a `ء` glued to the previous word. Tesseract runs as a CLI
-because PyMuPDF's built-in OCR reverses some right-to-left lines. Position sorting (`sort=True`)
-is off for the same reason: it reverses Arabic word order.
+The Arabic PDFs' text layers are unusable: they swap lam-alef ligatures (مولانا comes out as موالنا)
+and scramble letters inside words. Tesseract OCR gives clean text. The French code predates the
+2027 reform bill (03-26).
 
-The French code predates the reform bill 03-26, which is planned for 2027. Answers from it should
-say that it is the 2011 consolidation.
+## Project layout
 
-## Evaluation set
-
-`eval/questions.jsonl` has 75 questions: 36 MSA, 23 Darija and 16 French. Each one is written from a
-page that was read and labeled by doc and page.
-
-```json
-{"question": "شحال من ساعة خاصني نخدم فالسيمانة؟", "doc": "labour_code_ar.pdf", "page": 59, "lang": "darija"}
+```
+src/darija_rag/   ingest, ocr, normalize, bm25, dense, retrieval, rerank, rewrite,
+                  llm, answer, judge, factory, evaluate, api, cli, web/index.html
+eval/             questions.jsonl (200 questions)
+docs/             architecture, evaluation, api, deployment (backends, speed), troubleshooting
+examples/         ask_api.py, batch_ask.py (questions.txt -> CSV), curl.sh
+scripts/          fetch_corpus.sh
+tests/            offline tests: models and the LLM are faked, CI runs without PyTorch
 ```
 
-**Caveat:** the MSA questions were written while reading the article, so they share vocabulary with
-it. That favors BM25, so read the MSA numbers as an upper bound. The Darija questions use everyday
-words on purpose (السيمانة, الكونطرا, الباطرون, جراو عليا).
+Start with [docs/architecture.md](docs/architecture.md) for the pipeline diagram and design decisions, [docs/api.md](docs/api.md) for the HTTP API, and [docs/troubleshooting.md](docs/troubleshooting.md) when something breaks. [CONTRIBUTING.md](CONTRIBUTING.md) covers adding documents or questions.
 
-## Results
+## Limitations
 
-Retrieval, 75 questions, chunks of 200 words with 50 overlap:
-
-| Retriever | Questions | n | Recall@1 | Recall@5 | Recall@10 | MRR@10 |
-|---|---|---|---|---|---|---|
-| bm25 | all | 75 | 0.47 | 0.68 | 0.76 | 0.56 |
-| bm25 | darija | 23 | 0.09 | 0.26 | 0.30 | 0.14 |
-| bm25 | fr | 16 | 0.38 | 0.69 | 0.88 | 0.52 |
-| bm25 | msa | 36 | 0.75 | 0.94 | 1.00 | 0.84 |
-| dense | all | 75 | 0.41 | 0.65 | 0.72 | 0.51 |
-| dense | darija | 23 | 0.09 | 0.13 | 0.17 | 0.10 |
-| dense | fr | 16 | 0.50 | 0.94 | 1.00 | 0.68 |
-| dense | msa | 36 | 0.58 | 0.86 | 0.94 | 0.69 |
-| **hybrid** | all | 75 | 0.47 | **0.75** | **0.80** | **0.58** |
-| hybrid | darija | 23 | 0.04 | 0.26 | 0.39 | 0.13 |
-| hybrid | fr | 16 | 0.44 | 1.00 | 1.00 | 0.67 |
-| hybrid | msa | 36 | 0.75 | 0.94 | 0.97 | 0.82 |
-
-BM25 ablations (Recall@10, all / darija):
-
-| Variant | all | darija |
-|---|---|---|
-| baseline (200 words, article stripped) | 0.76 | 0.30 |
-| without article stripping | 0.72 | 0.22 |
-| chunks of 100 words | 0.73 | 0.30 |
-| chunks of 400 words | 0.79 | 0.39 |
-
-**Findings**
-- Hybrid is the best retriever overall. Dense helps most on French paraphrases, and BM25 holds on
-  exact MSA legal terms.
-- Darija is the open problem. Every retriever stays under 0.40 Recall@10. Dense does worse than
-  BM25 on it: only 76% of dense's top-5 chunks for Darija questions come from the right code,
-  against 99% for MSA. e5-small does not understand Darija, so Darija→MSA query rewriting with the
-  LLM is the next lever.
-- Stripping the article helps Darija the most (Recall@10 0.22 → 0.30).
-- Chunk size barely matters at 75 questions. Differences of one or two questions are noise.
+- **Latency.** On a 16 GB Mac, with Gemma 4 12B in LM Studio and the models on CPU, an answer takes
+  about 30 s: ~7 s for retrieval and reranking, the rest for generation. The original < 2.5 s target
+  needs a GPU server or a smaller model. Retrieval alone (`search`) without `+rerank` is under 1 s.
+- **Eval-set bias.** One author wrote the questions, and the MSA ones share wording with the
+  articles. The Darija detector was tuned on this set. The answer judge is the same model as the
+  generator. See [docs/evaluation.md](docs/evaluation.md).
+- **Legal currency.** The texts are the consolidated versions listed above. This is not legal
+  advice.
 
 ## Roadmap
 
-- [x] **Week 1:** ingestion, OCR, normalization, BM25 baseline, retrieval metrics, ablations
-- [x] **Week 2:** dense retrieval (multilingual-e5-small), hybrid with reciprocal rank fusion
-- [ ] **Week 2 (still to do):** cross-encoder reranker (`BAAI/bge-reranker-v2-m3`), compare BGE-M3 embeddings, grow the eval set to 200
-- [ ] **Week 3:** answer generation with citations through the LLM gateway (Ollama), faithfulness and hallucination scored by an LLM judge, p95 latency < 2.5 s
-- [ ] **Week 4:** Darija→MSA query rewriting, FastAPI service, Next.js chat UI, Docker Compose (pgvector once the corpus outgrows memory)
+- [x] Ingestion with Arabic OCR, normalization, BM25 from scratch
+- [x] Dense (e5, BGE-M3), hybrid RRF, cross-encoder reranking
+- [x] 200-question eval set: MSA, Darija, Arabizi, French, cross-lingual, unanswerable
+- [x] Darija/Arabizi → MSA query rewriting
+- [x] Cited answers with abstention; LLM judge; latency
+- [x] FastAPI service, chat UI, Docker, CI
+- [ ] Answer in the question's dialect more reliably; Arabizi answers are inconsistent
+- [ ] Bulletin Officiel issues and the Code des obligations et contrats
+- [ ] Streaming answers in the UI
+- [ ] A second annotator for the eval set

@@ -1,0 +1,26 @@
+# docker compose up --build
+# One-time corpus setup: download on the host, then OCR + chunk inside the container
+# (it has Tesseract with Arabic):
+#   ./scripts/fetch_corpus.sh
+#   docker compose run --rm api darija-rag ingest --ocr '*_ar.pdf'
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - models:/models
+    environment:
+      # LM Studio / Bionic / Ollama running on the host machine.
+      DARIJA_RAG_LLM_URL: ${DARIJA_RAG_LLM_URL:-http://host.docker.internal:1234/v1}
+      DARIJA_RAG_LLM_MODEL: ${DARIJA_RAG_LLM_MODEL:-}
+      DARIJA_RAG_LLM_KEY: ${DARIJA_RAG_LLM_KEY:-}
+      DARIJA_RAG_DEVICE: ${DARIJA_RAG_DEVICE:-cpu}
+      DARIJA_RAG_RETRIEVER: ${DARIJA_RAG_RETRIEVER:-dense-m3+rewrite+rerank}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  models:
