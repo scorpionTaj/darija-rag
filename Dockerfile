@@ -1,5 +1,5 @@
 # API + chat UI. Corpus and indexes live in the mounted ./data volume, models in /models.
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ara \
