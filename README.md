@@ -1,5 +1,12 @@
 # darija-rag
 
+> **Archived.** This was the research prototype behind
+> **[Qanoun](https://github.com/scorpionTaj/qanoun)**, which grew it into a product: 45 laws instead
+> of 8, article-level structure, hybrid search in Postgres, a trilingual web app and a
+> [live demo](https://qanoun-ma.vercel.app). Qanoun's evaluation reuses this repository's 264
+> labelled questions. The retrieval ablations below remain the record of what each stage
+> contributes.
+
 Ask Moroccan law questions the way people actually ask them, in **Darija, Arabizi
 (`chhal mn sa3a khasni nkhdem?`), Modern Standard Arabic or French**, and get answers grounded in
 eight official texts (Labour Code, Family Code, residential and commercial lease laws, and the Code
